@@ -1,0 +1,10 @@
+ECAT Blue Light Response Checker
+Check if a postcode is within 25 minutes of The Royal London Hospital.
+Enter UK Postcode (e.g., E1 1BB)
+Check Drive Time
+Loading...
+Calculating real-time traffic...
+Enter a postcode above to begin the check.
+Destination: The Royal London Hospital, E1 1BB, UK
+Target Blue Light Time: 25 minutes
+Any issues with this web app please contact lead paramedic and Gregory.welch@nhs.net
