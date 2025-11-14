@@ -31,13 +31,7 @@
 
     <div class="w-full max-w-lg bg-white p-8 md:p-10 rounded-xl shadow-2xl transition-all duration-300 card-shadow">
 
-        <!-- MOCK MODE WARNING BANNER -->
-        <div id="mockBanner" class="bg-yellow-100 text-yellow-800 p-3 rounded-lg text-center mb-6 text-sm font-medium border border-yellow-300 hidden">
-            <span class="font-bold">MOCK MODE ACTIVE:</span> Displaying simulated results. Set `MOCK_API_RESPONSE` to `false` in the code to use the real Google Maps API.
-        </div>
-
         <header class="text-center mb-8">
-            <!-- Updated Title: Removed the second (helicopter) icon -->
             <h1 class="text-3xl font-bold text-red-700 mb-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="inline-block w-8 h-8 mr-2 -mt-1 text-red-500" viewBox="0 0 24 24" fill="currentColor">
                     <!-- Ambulance/Medical Icon -->
@@ -103,19 +97,15 @@
 
     <script>
         // --- Configuration and Constants ---
-        // IMPORTANT: The API key is included here for the purpose of a single-file application.
-        // In a production environment, this key should be securely handled server-side.
-        // Replace "AIzaSyA0Lpp69jFg3UmuygJ_E9mUgGmGQSaEa7o" with your key.
-        const API_KEY = "IAIzaSyA0Lpp69jFg3UmuygJ_E9mUgGmGQSaEa7o";
+        const API_KEY = "AIzaSyA0Lpp69jFg3UmuygJ_E9mUgGmGQSaEa7o"; // REMEMBER TO REPLACE THIS KEY!
         const DESTINATION = "Whitechapel Road, London E1 1BB, UK";
         const MAX_EMERGENCY_MINUTES = 25;
         const BLUE_LIGHT_MULTIPLIER = 0.6; // 3/5
         
-        // ** MOCKING FLAG: Set to false to use the real Google Maps API call. **
+        // This flag is no longer used, but kept for clarity if you decide to re-implement mock data
         const MOCK_API_RESPONSE = false; 
         
         // Max standard traffic duration (in seconds) that corresponds to 25 minutes blue light time:
-        // T_normal = T_emergency / Multiplier = 25 / 0.6 ≈ 41.67 minutes
         const MAX_NORMAL_SECONDS = (MAX_EMERGENCY_MINUTES / BLUE_LIGHT_MULTIPLIER) * 60; // 2500 seconds
         const MAX_NORMAL_MINUTES = (MAX_NORMAL_SECONDS / 60).toFixed(1);
 
@@ -124,124 +114,32 @@
         const checkButton = document.getElementById('checkButton');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const statusMessage = document.getElementById('statusMessage');
-        const resultContainer = document.getElementById('resultContainer');
         const detailsCard = document.getElementById('detailsCard');
-        const mockBanner = document.getElementById('mockBanner'); 
-        
-        // Helper function for exponential backoff
-        const MAX_RETRIES = 3;
-        const INITIAL_DELAY_MS = 1000;
-
-        // Display mock banner if active
-        if (MOCK_API_RESPONSE) {
-            mockBanner.classList.remove('hidden');
-        }
-
 
         /**
-         * Fetches driving time from Google Maps Distance Matrix API with backoff.
-         * Includes mock responses for testing purposes when MOCK_API_RESPONSE is true.
-         * @param {string} origin - The user's postcode.
-         * @param {number} attempt - Current retry attempt (starts at 1).
+         * Updates the UI with the final result, including status styling.
+         * @param {string} message - The main result message.
+         * @param {string} type - 'success', 'failure', or 'error'.
+         * @param {string} [detailsHtml=''] - Optional HTML for details card.
          */
-        async function fetchWithBackoff(origin, attempt = 1) {
-            
-            // --- MOCK API RESPONSE LOGIC ---
-            if (MOCK_API_RESPONSE) {
-                return new Promise(resolve => {
-                    setTimeout(() => { // Simulate network delay
-                        const normalizedOrigin = origin.toUpperCase().replace(/\s/g, '');
-                        
-                        let mockData = {};
-                        
-                        if (normalizedOrigin.includes('E11BB') || normalizedOrigin.includes('E1')) {
-                            // Success Case 1: Close to destination (e.g., 25 min normal traffic -> 15 min blue light)
-                            mockData = {
-                                status: "OK",
-                                origin_addresses: ["E1 1BB, UK (Mock Success)"],
-                                destination_addresses: [DESTINATION],
-                                rows: [{
-                                    elements: [{
-                                        status: "OK",
-                                        duration_in_traffic: { text: "25 mins", value: 1500 }, // 1500s < 2500s threshold
-                                        distance: { text: "3.5 mi", value: 5632 }
-                                    }]
-                                }]
-                            };
-                        } else if (normalizedOrigin.includes('M11AE') || normalizedOrigin.includes('M')) {
-                            // Failure Case: Far away (e.g., 4 hours normal traffic -> 2.4 hours blue light)
-                            mockData = {
-                                status: "OK",
-                                origin_addresses: ["M1 1AE, UK (Mock Failure)"],
-                                destination_addresses: [DESTINATION],
-                                rows: [{
-                                    elements: [{
-                                        status: "OK",
-                                        duration_in_traffic: { text: "4 hours 10 mins", value: 15000 }, // 15000s > 2500s threshold
-                                        distance: { text: "200 mi", value: 321868 }
-                                    }]
-                                }]
-                            };
-                        } else if (normalizedOrigin.length < 3) {
-                            // Invalid Postcode/Not Found Case
-                            mockData = {
-                                status: "OK",
-                                origin_addresses: ["Invalid Postcode Input"],
-                                destination_addresses: [DESTINATION],
-                                rows: [{
-                                    elements: [{
-                                        status: "ZERO_RESULTS" // Simulate no route found error
-                                    }]
-                                }]
-                            };
-                        } else {
-                            // Generic Success Case (Safe middle ground - e.g., 35 min normal traffic -> 21 min blue light)
-                            mockData = {
-                                status: "OK",
-                                origin_addresses: [`${origin}, UK (Mock Generic)`],
-                                destination_addresses: [DESTINATION],
-                                rows: [{
-                                    elements: [{
-                                        status: "OK",
-                                        duration_in_traffic: { text: "35 mins", value: 2100 }, // 2100s is under 2500s
-                                        distance: { text: "15.0 mi", value: 24140 }
-                                    }]
-                                }]
-                            };
-                        }
-                        
-                        resolve(mockData);
-                    }, 800); // 800ms delay to simulate loading
-                });
-            }
-            // --- END MOCK API RESPONSE LOGIC ---
+        function displayResult(message, type, detailsHtml = '') {
+            statusMessage.textContent = message;
+            detailsCard.innerHTML = (type === 'success' || type === 'failure') ? detailsHtml : '';
 
-            // --- REAL API CALL LOGIC ---
-            const apiUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin},UK&destinations=${DESTINATION}&key=${API_KEY}&mode=driving&departure_time=now&traffic_model=best_guess&units=metric`;
+            statusMessage.className = 'text-center font-semibold text-lg py-2 px-4 rounded-lg';
+            detailsCard.classList.toggle('hidden', type === 'error');
 
-            try {
-                const response = await fetch(apiUrl);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                return data;
-
-            } catch (error) {
-                console.error(`API Call failed on attempt ${attempt}:`, error);
-
-                if (attempt < MAX_RETRIES) {
-                    const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return fetchWithBackoff(origin, attempt + 1); // Retry
-                } else {
-                    throw new Error("Failed to connect to the Google Maps API after multiple retries.");
-                }
+            if (type === 'success') {
+                statusMessage.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'failure') {
+                statusMessage.classList.add('bg-red-100', 'text-red-800');
+            } else { // error
+                statusMessage.classList.add('bg-yellow-100', 'text-yellow-800');
             }
         }
-
+        
         /**
-         * Main function to check the drive time.
+         * Main function to check the drive time using a single API call.
          */
         async function checkDriveTime() {
             const postcode = postcodeInput.value.trim().toUpperCase().replace(/\s/g, '');
@@ -251,127 +149,86 @@
                 return;
             }
 
+            // Quick check to prevent unnecessary API call if key is placeholder
+            if (API_KEY.includes('!!!')) {
+                 displayResult(`API Key Required. Please replace the placeholder key in the code.`, 'error');
+                 return;
+            }
+
             // Set UI to loading state
             checkButton.disabled = true;
             loadingIndicator.classList.remove('hidden');
             statusMessage.textContent = 'Calculating real-time traffic...';
             statusMessage.className = 'text-center text-gray-500 italic';
-            resultContainer.classList.remove('bg-green-100', 'bg-red-100', 'border-green-400', 'border-red-400', 'p-4', 'rounded-lg');
-            detailsCard.classList.remove('hidden');
 
             try {
-                const data = await fetchWithBackoff(postcode);
+                // 1. Construct API URL and Fetch Data
+                const apiUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${postcode},UK&destinations=${DESTINATION}&key=${API_KEY}&mode=driving&departure_time=now&traffic_model=best_guess&units=metric`;
+                const response = await fetch(apiUrl);
 
+                if (!response.ok) {
+                    throw new Error(`Network error: HTTP status ${response.status}`);
+                }
+                const data = await response.json();
+
+                // 2. Handle Top-Level API Errors
                 if (data.status === 'REQUEST_DENIED') {
-                    displayResult(`API Error: REQUEST DENIED. Please check your API key's configuration. It may be restricted from running on this domain.`, 'error');
+                    displayResult(`API Error: REQUEST DENIED. Check your Google Cloud Console for API key restrictions and enabled services.`, 'error');
                     return;
-                } else if (data.status !== 'OK') {
-                    displayResult(`API Error: ${data.error_message || data.status}. Check your postcode formatting or the API status.`, 'error');
+                }
+                if (data.status !== 'OK') {
+                    displayResult(`API Error: ${data.error_message || data.status}.`, 'error');
                     return;
                 }
 
                 const element = data.rows[0].elements[0];
-                const destinationAddress = data.destination_addresses[0];
                 const originAddress = data.origin_addresses[0];
 
+                // 3. Handle Route/Element Errors
                 if (element.status !== 'OK' || !element.duration_in_traffic) {
-                    // This happens if the postcode is invalid or routing is impossible
-                    let errorMessage = "Could not calculate a route. Please ensure the postcode is valid and reachable by road in the UK.";
+                    let errorMessage = "Could not calculate a route.";
                     if (element.status === 'ZERO_RESULTS') {
-                        errorMessage = `No driving route found between ${originAddress} and ${destinationAddress}.`;
-                    } else if (element.status === 'NOT_FOUND') {
-                        errorMessage = `One of the locations (Origin: ${postcode} or Destination: ${DESTINATION}) could not be found.`;
+                        errorMessage = `No driving route found between ${originAddress} and the hospital.`;
                     }
                     displayResult(errorMessage, 'error');
                     return;
                 }
 
+                // 4. Successful Calculation and Display
                 const durationInSeconds = element.duration_in_traffic.value;
                 const normalDurationText = element.duration_in_traffic.text;
                 const distanceText = element.distance.text;
 
-                // --- Calculation ---
                 const blueLightTimeSeconds = durationInSeconds * BLUE_LIGHT_MULTIPLIER;
                 const blueLightTimeMinutes = (blueLightTimeSeconds / 60).toFixed(1);
 
-                let isWithinLimit = false;
-                let resultText = '';
-                let resultClass = '';
+                const isWithinLimit = (durationInSeconds <= MAX_NORMAL_SECONDS);
+                
+                const resultText = isWithinLimit 
+                    ? `YES! Estimated Blue Light Drive Time: ${blueLightTimeMinutes} minutes.`
+                    : `ECAT Team recommended to travel by aircraft as drive time estimated to be ${blueLightTimeMinutes} minutes.`;
 
-                if (durationInSeconds <= MAX_NORMAL_SECONDS) {
-                    isWithinLimit = true;
-                    resultText = `YES! Estimated Blue Light Drive Time: ${blueLightTimeMinutes} minutes.`;
-                    resultClass = 'success';
-                } else {
-                    // Updated failure message to recommend air travel
-                    resultText = `ECAT Team recommended to travel by aircraft as drive time estimated to be ${blueLightTimeMinutes} minutes.`;
-                    resultClass = 'failure';
-                }
-
-                // Append detailed data to the results container
                 const detailsHtml = `
-                    <p class="text-sm text-gray-600 mb-1">
-                        <span class="font-bold">Origin:</span> ${originAddress}
-                    </p>
-                    <p class="text-sm text-gray-600 mb-1">
-                        <span class="font-bold">Normal Real-Time Drive:</span> ${normalDurationText}
-                    </p>
-                    <p class="text-sm text-gray-600 mb-1">
-                        <span class="font-bold">Distance:</span> ${distanceText}
-                    </p>
+                    <p class="text-sm text-gray-600 mb-1"><span class="font-bold">Origin:</span> ${originAddress}</p>
+                    <p class="text-sm text-gray-600 mb-1"><span class="font-bold">Normal Real-Time Drive:</span> ${normalDurationText}</p>
+                    <p class="text-sm text-gray-600 mb-1"><span class="font-bold">Distance:</span> ${distanceText}</p>
                     <div class="mt-4 p-2 rounded-lg ${isWithinLimit ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
                         <p class="text-sm text-gray-700">
                             <span class="font-bold ${isWithinLimit ? 'text-green-700' : 'text-red-700'}">Calculated Threshold:</span> 
-                            To meet the 25-minute Blue Light Target (T \u00d7 3/5), your standard traffic drive time must not exceed <span class="font-extrabold">${MAX_NORMAL_MINUTES} minutes</span> (${MAX_NORMAL_SECONDS} seconds).
+                            Standard traffic time must not exceed <span class="font-extrabold">${MAX_NORMAL_MINUTES} minutes</span> (for 25 mins BLT).
                         </p>
                     </div>
                 `;
 
-                // Update the result display
-                displayResult(resultText, resultClass, detailsHtml);
+                displayResult(resultText, isWithinLimit ? 'success' : 'failure', detailsHtml);
 
             } catch (error) {
-                console.error('Fatal Error:', error);
-                
-                let errorMessage = '';
-                if (MOCK_API_RESPONSE) {
-                    // Specific message for mock mode errors (e.g., if mock data structure was bad)
-                    errorMessage = `An internal error occurred during mock processing.`;
-                } else {
-                    // Message for real API call errors (the "Load Failed" error)
-                    errorMessage = `Connection Failed. The API key might be invalid or restricted to a different domain. Please check your key configuration.`;
-                }
-
-                displayResult(errorMessage, 'error');
+                console.error('Fatal Connection Error:', error);
+                displayResult(`Connection Failed. A network or general API error occurred: ${error.message}`, 'error');
             } finally {
                 // Reset UI state
                 checkButton.disabled = false;
                 loadingIndicator.classList.add('hidden');
-            }
-        }
-
-        /**
-         * Updates the UI with the final result.
-         * @param {string} message - The main result message.
-         * @param {string} type - 'success', 'failure', or 'error'.
-         * @param {string} [detailsHtml=''] - Optional HTML for details card.
-         */
-        function displayResult(message, type, detailsHtml = '') {
-            statusMessage.textContent = message;
-            detailsCard.innerHTML = (type === 'success' || type === 'failure') ? detailsHtml : '';
-
-            // Update status message styling
-            statusMessage.className = 'text-center font-semibold text-lg py-2 px-4 rounded-lg';
-
-            if (type === 'success') {
-                statusMessage.classList.add('bg-green-100', 'text-green-800');
-                detailsCard.classList.remove('hidden');
-            } else if (type === 'failure') {
-                statusMessage.classList.add('bg-red-100', 'text-red-800');
-                detailsCard.classList.remove('hidden');
-            } else { // error
-                statusMessage.classList.add('bg-yellow-100', 'text-yellow-800');
-                detailsCard.classList.add('hidden');
             }
         }
 
